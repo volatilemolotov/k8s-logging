@@ -1,0 +1,260 @@
+elasticsearch:
+  clusterName: "logger-elasticsearch"
+  nodeGroup: "master"
+
+  # The service that non master groups will try to connect to when joining the cluster
+  # This should be set to clusterName + "-" + nodeGroup for your master group
+  masterService: ""
+
+  # Elasticsearch roles that will be applied to this nodeGroup
+  # These will be set as environment variables. E.g. node.master=true
+  roles:
+    master: "true"
+    ingest: "true"
+    data: "true"
+
+  replicas: 3
+  minimumMasterNodes: 2
+
+  esMajorVersion: 7
+
+  image: "docker.elastic.co/elasticsearch/elasticsearch"
+  imageTag: "7.1.1"
+  imagePullPolicy: "IfNotPresent"
+
+  esJavaOpts: "-Xmx1g -Xms1g"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "2Gi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+  networkHost: "0.0.0.0"
+
+  volumeClaimTemplate:
+    accessModes: [ "ReadWriteOnce" ]
+    resources:
+      requests:
+        storage: 200Gi
+
+  persistence:
+    enabled: true
+
+  antiAffinityTopologyKey: "kubernetes.io/hostname"
+  antiAffinity: "hard"
+  podManagementPolicy: "Parallel"
+
+  protocol: http
+  httpPort: 9200
+  transportPort: 9300
+
+  service:
+    type: ClusterIP
+    nodePort:
+ 
+  updateStrategy: RollingUpdate
+  maxUnavailable: 1
+  fsGroup: 1000
+  terminationGracePeriod: 120
+  sysctlVmMaxMapCount: 262144
+  readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 3
+    timeoutSeconds: 5
+  clusterHealthCheckParams: "wait_for_status=green&timeout=1s"
+
+curator:
+  cronjob:
+    schedule: "0 1 * * *"
+  serviceAccount:
+    create: true
+  image:
+    repository: quay.io/pires/docker-elasticsearch-curator
+    tag: 5.5.4
+    pullPolicy: IfNotPresent
+  hooks:
+    install: false
+    upgrade: false
+  dryrun: false
+  command: ["curator"]
+  configMaps:
+    action_file_yml: |-
+      ---
+      actions:
+        1:
+          action: delete_indices
+          description: "Clean up ES by deleting old indices"
+          options:
+            timeout_override:
+            continue_if_exception: False
+            disable_action: False
+            ignore_empty_list: True
+          filters:
+          - filtertype: age
+            source: name
+            direction: older
+            timestring: '%Y.%m.%d'
+            unit: days
+            unit_count: 7
+            field:
+            stats_result:
+            epoch:
+            exclude: False
+    config_yml: |-
+      ---
+      client:
+        hosts:
+          - logger-elasticsearch-master
+        port: 9200
+  securityContext:
+    runAsUser: 16  # run as cron user instead of root
+kibana:
+  elasticsearchURL: "" # "http://elasticsearch-master:9200"
+  elasticsearchHosts: "http://logger-elasticsearch-master:9200"
+  replicas: 1
+  image: "docker.elastic.co/kibana/kibana"
+  imageTag: "7.1.1"
+  imagePullPolicy: "IfNotPresent"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "500m"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  protocol: http
+  serverHost: "0.0.0.0"
+  healthCheckPath: "/app/kibana"
+  antiAffinityTopologyKey: "kubernetes.io/hostname"
+  antiAffinity: "hard"
+  httpPort: 5601
+  maxUnavailable: 1
+  updateStrategy:
+    type: "Recreate"
+  service:
+    type: ClusterIP
+    port: 5601
+    nodePort:
+  readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 3
+    timeoutSeconds: 5
+
+fluentbit:
+  image:
+    fluent_bit:
+      repository: fluent/fluent-bit
+      tag: 1.1.2
+    pullPolicy: Always
+  testFramework:
+    image: "dduportal/bats"
+    tag: "0.4.0"
+  metrics:
+    enabled: false
+    service:
+      annotations: {}
+      # In order for Prometheus to consume metrics automatically use the following annotations:
+      # prometheus.io/path: "/api/v1/metrics/prometheus"
+      # prometheus.io/port: "2020"
+      # prometheus.io/scrape: "true"
+      port: 2020
+      type: ClusterIP
+  backend:
+    type: es
+    es:
+      host: logger-elasticsearch-master
+      port: 9200
+      # Elastic Index Name
+      index: kubernetes_cluster
+      type: flb_type
+      logstash_prefix: kubernetes_cluster
+      replace_dots: "On"
+      time_key: "@timestamp"
+      # Optional username credential for Elastic X-Pack access
+    http:
+      host: 127.0.0.1
+      port: 80
+      uri: "/"
+      http_user:
+      http_passwd:
+      tls: "off"
+      tls_verify: "on"
+      tls_debug: 1
+      ## Specify the data format to be used in the HTTP request body
+      ## Can be either 'msgpack' or 'json'
+      format: msgpack
+
+  rawConfig: |-
+    @INCLUDE fluent-bit-service.conf
+    @INCLUDE fluent-bit-input.conf
+    @INCLUDE fluent-bit-filter.conf
+    @INCLUDE fluent-bit-output.conf
+  dnsPolicy: ClusterFirst
+  service:
+    flush: 1
+    logLevel: info
+  input:
+    tail:
+      memBufLimit: 5MB
+      parser: docker
+      path: /var/log/containers/*.log
+    systemd:
+      enabled: false
+      filters:
+        systemdUnit:
+          - docker.service
+          - kubelet.service
+          - node-problem-detector.service
+      maxEntries: 1000
+      readFromTail: true
+      tag: host.*
+
+  filter:
+    kubeURL: https://kubernetes.default.svc:443
+    kubeCAFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kubeTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubeTag: kube
+    kubeTagPrefix: kube.var.log.containers.
+    mergeJSONLog: true
+    enableParser: true
+    enableExclude: true
+  rbac:
+    create: true
+  taildb:
+    directory: /var/lib/fluent-bit
+
+  serviceAccount:
+    create: true
+    name:
+
+metricbeat:
+  daemonset:
+    modules:
+      system:
+        enabled: false
+      kubernetes:
+        enabled: false
+
+  deployment:
+    config:
+      setup.template.name: "kubernetes_events"
+      setup.template.pattern: "kubernetes_events-*"
+      output.elasticsearch:
+        hosts: ["http://logger-elasticsearch-master:9200"]
+        index: "kubernetes_events-%{[beat.version]}-%{+yyyy.MM.dd}"
+      output.file:
+        enabled: false
+    modules:
+      kubernetes:
+        enabled: true
+        config:
+          - module: kubernetes
+            metricsets:
+              - event
