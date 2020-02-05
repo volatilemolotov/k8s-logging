@@ -1,18 +1,18 @@
 dependencies:
 - name: elasticsearch
   repository: https://helm.elastic.co
-  version: 7.1.1
+  version: 7.5.2
 - name: elasticsearch-curator
   repository: https://kubernetes-charts.storage.googleapis.com
-  version: 1.5.0
+  version: 2.1.3
 - name: kibana
   repository: https://helm.elastic.co
-  version: 7.1.1
+  version: 7.5.2
 - name: fluent-bit
   repository: https://kubernetes-charts.storage.googleapis.com
-  version: 2.0.5
+  version: 2.8.7
 - name: metricbeat
-  repository: https://kubernetes-charts.storage.googleapis.com
-  version: 1.6.4
-digest: sha256:70e5e1783fd8fe163bdbfeab102c639a2681180ecada02705700d2164049a351
-generated: 2019-06-18T12:43:02.222227635+02:00
+  repository: https://helm.elastic.co
+  version: 7.5.2
+digest: sha256:125df404216930b0abb27865ba4eb8b30988bb0ca62235365ffd09d637d92a30
+generated: "2020-02-05T11:01:08.506046064+01:00"
