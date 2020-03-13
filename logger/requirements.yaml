@@ -1,6 +1,6 @@
 dependencies:
   - name: elasticsearch
-    version: 7.5.2
+    version: 7.6.1
     repository: https://helm.elastic.co
     alias: elasticsearch
   - name: elasticsearch-curator
@@ -8,7 +8,7 @@ dependencies:
     repository: https://kubernetes-charts.storage.googleapis.com
     alias: curator
   - name: kibana
-    version: 7.5.2
+    version: 7.6.1
     repository: https://helm.elastic.co
     alias: kibana
   - name: fluent-bit
