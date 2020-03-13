@@ -16,6 +16,6 @@ dependencies:
     repository: https://kubernetes-charts.storage.googleapis.com
     alias: fluentbit
   - name: metricbeat
-    version: 7.5.2
+    version: 7.6.1
     repository: https://helm.elastic.co
     alias: metricbeat
