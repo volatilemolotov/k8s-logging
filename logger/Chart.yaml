@@ -2,4 +2,4 @@ apiVersion: v1
 appVersion: "0.1.0"
 description: Helm chart used to deploy a fully operational elasticsearch cluster for logging purposes. Deploys both fluentbit for container logs and metricbeat for kubernetes API logs
 name: logger
-version: 0.2.2
+version: 0.2.3
