@@ -355,18 +355,18 @@ metricbeat:
         enabled: false
 
   deployment:
-    config:
-      setup.template.name: "kubernetes_events"
-      setup.template.pattern: "kubernetes_events-*"
+  metricbeatConfig:
+    kube-state-metrics-metricbeat.yml: "null"
+    metricbeat.yml: |
+      setup.ilm.rollover_alias: kubernetes-events
+      metricbeat.modules:
+      - module: kubernetes
+        enabled: true
+        metricsets:
+          - event
       output.elasticsearch:
         hosts: ["http://logger-elasticsearch-master:9200"]
-        index: "kubernetes_events-%{[beat.version]}-%{+yyyy.MM.dd}"
       output.file:
         enabled: false
-    modules:
-      kubernetes:
-        enabled: true
-        config:
-          - module: kubernetes
-            metricsets:
-              - event
+
+
